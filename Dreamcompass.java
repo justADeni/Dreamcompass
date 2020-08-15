@@ -2,10 +2,7 @@ package me.prostedeni.goodcraft.dreamcompass;
 
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.block.Biome;
@@ -15,17 +12,22 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
-import sun.font.DelegatingShape;
-import com.sun.org.apache.xpath.internal.objects.XBoolean;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Dreamcompass extends JavaPlugin implements Listener {
+
+    public static HashMap<Player, String> Mapa;
+    public static HashMap<Player, Location> PortalMap;
 
     @Override
     public void onEnable() {
@@ -34,6 +36,9 @@ public final class Dreamcompass extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(this,this);
         getConfig().options().copyDefaults();
         saveDefaultConfig();
+
+        Mapa = new HashMap<>();
+        PortalMap = new HashMap<>();
     }
 
     public static java.util.Random rand = new java.util.Random();
@@ -72,129 +77,156 @@ public final class Dreamcompass extends JavaPlugin implements Listener {
         return false;
     }
     @EventHandler
-    public void onEvent(PlayerInteractEvent e){
-        if(e.getPlayer().getItemInHand().getType()==Material.COMPASS) {
-            if(Map.containsKey(e.getPlayer())) {
-                Player target = Bukkit.getPlayer(Map.get(e.getPlayer()));
-                if (e.getPlayer().hasPermission("dreamcompass.use")) {
-                    if (target != null) {
-                        boolean mode = getConfig().getBoolean("DefaultMode");
-                        if (mode) {
-                            e.getPlayer().setCompassTarget(target.getLocation());
-                            e.getPlayer().sendMessage(ChatColor.GOLD + "Compass pointing to " + Map.get(e.getPlayer()));
-                            e.getPlayer().spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', "&3&lY: &b" + target.getLocation().getBlockY())));
-                            int EnderChance = getConfig().getInt("EnderChance");
-                            if (EnderChance > 0 && EnderChance <= 100) {
-                                if (hasAdvancement(target, "nether/obtain_blaze_rod")) {
-                                    if (target.getWorld().getName().equals("world")) {
-                                        double EnderChanceDouble = ((double)EnderChance / (double)100);
-                                        double r = rand.nextDouble();
-                                        if (r >= 1-EnderChanceDouble) {
+    public void onEvent(PlayerInteractEvent e) {
+        if (e.getPlayer().getItemInHand().getType() == Material.COMPASS) {
+            if (Mapa.containsKey(e.getPlayer())) {
 
-                                            int minimumDist = getConfig().getInt("MinimumDistance");
-                                            int maximumX = getConfig().getInt("MaximumDistance");
-                                            int maximumZ = getConfig().getInt("MaximumDistance");
+                Player target = Bukkit.getPlayer(Mapa.get(e.getPlayer()));
+                Location targetLoc = target.getLocation();
+                if (target.getWorld().getEnvironment() == World.Environment.NETHER || target.getWorld().getEnvironment() == World.Environment.THE_END) {
+                    if (PortalMap.containsKey(target)){
+                        if (e.getPlayer().getWorld().getEnvironment() != target.getWorld().getEnvironment()) {
+                            targetLoc = PortalMap.get(target);
+                        }
+                    }
+                }
+                    if (e.getPlayer().hasPermission("dreamcompass.use")) {
+                        if (target != null) {
+                            boolean mode = getConfig().getBoolean("DefaultMode");
+                            if (mode) {
+                                e.getPlayer().setCompassTarget(targetLoc);
+                                e.getPlayer().sendMessage(ChatColor.GOLD + "Compass pointing to " + Mapa.get(e.getPlayer()));
+                                e.getPlayer().spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', "&3&lY: &b" + target.getLocation().getBlockY())));
+                                int EnderChance = getConfig().getInt("EnderChance");
+                                if (EnderChance > 0 && EnderChance <= 100) {
+                                    if (hasAdvancement(target, "nether/obtain_blaze_rod")) {
+                                        if (target.getWorld().getName().equals("world")) {
+                                            double EnderChanceDouble = ((double) EnderChance / (double) 100);
+                                            double r = rand.nextDouble();
+                                            if (r >= 1 - EnderChanceDouble) {
 
-                                            int randomX = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockX() - maximumX), (target.getLocation().getBlockX() + maximumX + 1));
-                                            int randomZ = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockZ() - maximumZ), (target.getLocation().getBlockZ() + maximumZ + 1));
+                                                int minimumDist = getConfig().getInt("MinimumDistance");
+                                                int maximumX = getConfig().getInt("MaximumDistance");
+                                                int maximumZ = getConfig().getInt("MaximumDistance");
 
-                                            Biome biome = target.getWorld().getBiome(target.getLocation().getBlockX(),target.getLocation().getBlockZ());
+                                                int randomX = ThreadLocalRandom.current().nextInt((targetLoc.getBlockX() - maximumX), (targetLoc.getBlockX() + maximumX + 1));
+                                                int randomZ = ThreadLocalRandom.current().nextInt((targetLoc.getBlockZ() - maximumZ), (targetLoc.getBlockZ() + maximumZ + 1));
 
-                                            if ((biome == Biome.GRAVELLY_MOUNTAINS || biome == Biome.MOUNTAINS || biome == Biome.MOUNTAIN_EDGE || biome == Biome.MODIFIED_GRAVELLY_MOUNTAINS || biome == Biome.SNOWY_MOUNTAINS || biome == Biome.SNOWY_TAIGA_MOUNTAINS || biome == Biome.TAIGA_MOUNTAINS || biome == Biome.ICE_SPIKES || biome == Biome.WOODED_MOUNTAINS || biome == Biome.SHATTERED_SAVANNA) || (target.getLocation().getBlockY() > 120)){
-                                                epsilon = (target.getLocation().getBlockY() - 70);
-                                            } else {
-                                                epsilon = (target.getLocation().getBlockY() - 15);
-                                            }
+                                                Biome biome = target.getWorld().getBiome(targetLoc.getBlockX(), targetLoc.getBlockZ());
 
-                                            Location loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                            Location loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
-                                            Location loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
+                                                if ((biome == Biome.GRAVELLY_MOUNTAINS || biome == Biome.MOUNTAINS || biome == Biome.MOUNTAIN_EDGE || biome == Biome.MODIFIED_GRAVELLY_MOUNTAINS || biome == Biome.SNOWY_MOUNTAINS || biome == Biome.SNOWY_TAIGA_MOUNTAINS || biome == Biome.TAIGA_MOUNTAINS || biome == Biome.ICE_SPIKES || biome == Biome.WOODED_MOUNTAINS || biome == Biome.SHATTERED_SAVANNA) || (targetLoc.getBlockY() > 120)) {
+                                                    epsilon = (targetLoc.getBlockY() - 70);
+                                                } else {
+                                                    epsilon = (targetLoc.getBlockY() - 15);
+                                                }
 
-                                            Location targetloc = target.getLocation();
-                                            while (loc0.distance(targetloc) < minimumDist){
-                                                randomX = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockX() - maximumX), (target.getLocation().getBlockX() + maximumX + 1));
-                                                randomZ = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockZ() - maximumZ), (target.getLocation().getBlockZ() + maximumZ + 1));
-                                                loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                                if(loc0.distance(targetloc) < minimumDist){
-                                                    break;
+                                                Location loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                Location loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
+                                                Location loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
+
+                                                while (loc0.distance(targetLoc) < minimumDist) {
+                                                    randomX = ThreadLocalRandom.current().nextInt((targetLoc.getBlockX() - maximumX), (targetLoc.getBlockX() + maximumX + 1));
+                                                    randomZ = ThreadLocalRandom.current().nextInt((targetLoc.getBlockZ() - maximumZ), (targetLoc.getBlockZ() + maximumZ + 1));
+                                                    loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                    if (loc0.distance(targetLoc) < minimumDist) {
+                                                        break;
+                                                    }
+                                                }
+                                                for (int i = 2; i < 200; ++i) {
+                                                    ++epsilon;
+                                                    loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                    loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
+                                                    loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
+                                                    if (loc0.getBlock().getType() == Material.AIR && loc1.getBlock().getType() == Material.AIR && loc2.getBlock().getType() == Material.AIR) {
+                                                        target.getWorld().spawnEntity(loc0, EntityType.ENDERMAN);
+                                                        break;
+                                                    }
                                                 }
                                             }
-                                            for(int i = 2; i < 200; ++i){
-                                                ++epsilon;
-                                                loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                                loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
-                                                loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
-                                                if (loc0.getBlock().getType() == Material.AIR && loc1.getBlock().getType() == Material.AIR && loc2.getBlock().getType() == Material.AIR) {
-                                                    target.getWorld().spawnEntity(loc0, EntityType.ENDERMAN);
-                                                    break;
-                                                }}
-                                        }}
+                                        }
+                                    }
                                 }
                             }
-                        } if (!mode){
-                            e.getPlayer().setCompassTarget(target.getLocation());
-                            e.getPlayer().sendMessage(ChatColor.GOLD + "Compass pointing to " + Map.get(e.getPlayer()));
-                            e.getPlayer().spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', "&3&lX: &b" + target.getLocation().getBlockX() + "   &3&lY: &b" + target.getLocation().getBlockY() + "   &3&lZ: &b" + target.getLocation().getBlockZ() + "   &c&lWorld: &e" + target.getWorld().getName())));
-                            int EnderChance = getConfig().getInt("EnderChance");
-                            if (EnderChance > 0 && EnderChance <= 100) {
-                                if (hasAdvancement(target, "nether/obtain_blaze_rod")) {
-                                    if (target.getWorld().getName().equals("world")) {
-                                        double EnderChanceDouble = ((double)EnderChance / (double)100);
-                                        double r = rand.nextDouble();
-                                        if (r >= 1-EnderChanceDouble) {
+                            if (!mode) {
+                                e.getPlayer().setCompassTarget(targetLoc);
+                                e.getPlayer().sendMessage(ChatColor.GOLD + "Compass pointing to " + Mapa.get(e.getPlayer()));
+                                e.getPlayer().spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', "&3&lX: &b" + target.getLocation().getBlockX() + "   &3&lY: &b" + target.getLocation().getBlockY() + "   &3&lZ: &b" + target.getLocation().getBlockZ() + "   &c&lWorld: &e" + target.getWorld().getName())));
+                                int EnderChance = getConfig().getInt("EnderChance");
+                                if (EnderChance > 0 && EnderChance <= 100) {
+                                    if (hasAdvancement(target, "nether/obtain_blaze_rod")) {
+                                        if (target.getWorld().getName().equals("world")) {
+                                            double EnderChanceDouble = ((double) EnderChance / (double) 100);
+                                            double r = rand.nextDouble();
+                                            if (r >= 1 - EnderChanceDouble) {
 
-                                            int minimumDist = getConfig().getInt("MinimumDistance");
-                                            int maximumX = getConfig().getInt("MaximumDistance");
-                                            int maximumZ = getConfig().getInt("MaximumDistance");
+                                                int minimumDist = getConfig().getInt("MinimumDistance");
+                                                int maximumX = getConfig().getInt("MaximumDistance");
+                                                int maximumZ = getConfig().getInt("MaximumDistance");
 
-                                            int randomX = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockX() - maximumX), (target.getLocation().getBlockX() + maximumX + 1));
-                                            int randomZ = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockZ() - maximumZ), (target.getLocation().getBlockZ() + maximumZ + 1));
+                                                int randomX = ThreadLocalRandom.current().nextInt((targetLoc.getBlockX() - maximumX), (targetLoc.getBlockX() + maximumX + 1));
+                                                int randomZ = ThreadLocalRandom.current().nextInt((targetLoc.getBlockZ() - maximumZ), (targetLoc.getBlockZ() + maximumZ + 1));
 
-                                            Biome biome = target.getWorld().getBiome(target.getLocation().getBlockX(),target.getLocation().getBlockZ());
+                                                Biome biome = target.getWorld().getBiome(target.getLocation().getBlockX(), target.getLocation().getBlockZ());
 
-                                            if ((biome == Biome.GRAVELLY_MOUNTAINS || biome == Biome.MOUNTAINS || biome == Biome.MOUNTAIN_EDGE || biome == Biome.MODIFIED_GRAVELLY_MOUNTAINS || biome == Biome.SNOWY_MOUNTAINS || biome == Biome.SNOWY_TAIGA_MOUNTAINS || biome == Biome.TAIGA_MOUNTAINS || biome == Biome.ICE_SPIKES || biome == Biome.WOODED_MOUNTAINS || biome == Biome.SHATTERED_SAVANNA) || (target.getLocation().getBlockY() > 120)){
-                                                epsilon = (target.getLocation().getBlockY() - 70);
-                                            } else {
-                                                epsilon = (target.getLocation().getBlockY() - 15);
-                                            }
+                                                if ((biome == Biome.GRAVELLY_MOUNTAINS || biome == Biome.MOUNTAINS || biome == Biome.MOUNTAIN_EDGE || biome == Biome.MODIFIED_GRAVELLY_MOUNTAINS || biome == Biome.SNOWY_MOUNTAINS || biome == Biome.SNOWY_TAIGA_MOUNTAINS || biome == Biome.TAIGA_MOUNTAINS || biome == Biome.ICE_SPIKES || biome == Biome.WOODED_MOUNTAINS || biome == Biome.SHATTERED_SAVANNA) || (target.getLocation().getBlockY() > 120)) {
+                                                    epsilon = (targetLoc.getBlockY() - 70);
+                                                } else {
+                                                    epsilon = (targetLoc.getBlockY() - 15);
+                                                }
 
-                                            Location loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                            Location loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
-                                            Location loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
+                                                Location loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                Location loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
+                                                Location loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
 
-                                            Location targetloc = target.getLocation();
-                                            while (loc0.distance(targetloc) < minimumDist){
-                                                randomX = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockX() - maximumX), (target.getLocation().getBlockX() + maximumX + 1));
-                                                randomZ = ThreadLocalRandom.current().nextInt((target.getLocation().getBlockZ() - maximumZ), (target.getLocation().getBlockZ() + maximumZ + 1));
-                                                loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                                if(loc0.distance(targetloc) < minimumDist){
-                                                    break;
+                                                while (loc0.distance(targetLoc) < minimumDist) {
+                                                    randomX = ThreadLocalRandom.current().nextInt((targetLoc.getBlockX() - maximumX), (targetLoc.getBlockX() + maximumX + 1));
+                                                    randomZ = ThreadLocalRandom.current().nextInt((targetLoc.getBlockZ() - maximumZ), (targetLoc.getBlockZ() + maximumZ + 1));
+                                                    loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                    if (loc0.distance(targetLoc) < minimumDist) {
+                                                        break;
+                                                    }
+                                                }
+                                                for (int i = 2; i < 200; ++i) {
+                                                    ++epsilon;
+                                                    loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
+                                                    loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
+                                                    loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
+                                                    if (loc0.getBlock().getType() == Material.AIR && loc1.getBlock().getType() == Material.AIR && loc2.getBlock().getType() == Material.AIR) {
+                                                        target.getWorld().spawnEntity(loc0, EntityType.ENDERMAN);
+                                                        break;
+                                                    }
                                                 }
                                             }
-                                            for(int i = 2; i < 200; ++i){
-                                                ++epsilon;
-                                                loc0 = new Location(target.getWorld(), randomX, epsilon, randomZ);
-                                                loc1 = new Location(target.getWorld(), randomX, epsilon + 1, randomZ);
-                                                loc2 = new Location(target.getWorld(), randomX, epsilon + 2, randomZ);
-                                                if (loc0.getBlock().getType() == Material.AIR && loc1.getBlock().getType() == Material.AIR && loc2.getBlock().getType() == Material.AIR) {
-                                                    target.getWorld().spawnEntity(loc0, EntityType.ENDERMAN);
-                                                    break;
-                                                }}
-                                        }}
+                                        }
+                                    }
                                 }
                             }
+                        } else {
+                            e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&lPlayer &4&l" + Mapa.get(e.getPlayer()) + "&c&l is offline"));
                         }
                     } else {
-                        e.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&lPlayer &4&l" + Map.get(e.getPlayer()) + "&c&l is offline"));
+                        e.getPlayer().sendMessage(ChatColor.DARK_RED + "You don't have permission to do that");
                     }
-                } else{
-                    e.getPlayer().sendMessage(ChatColor.DARK_RED + "You don't have permission to do that");
-                }
             }
         }
     }
 
-    HashMap<Player,String>Map=new HashMap<Player, String>();
+    @EventHandler
+    public void onNetherEndEnter(PlayerPortalEvent e){
+        if (Mapa.containsValue(e.getPlayer().getName())){
+
+            Location portalLoc = e.getPlayer().getLocation();
+
+            new BukkitRunnable(){
+                @Override
+                public void run(){
+                    if (e.getPlayer().getWorld().getEnvironment() == World.Environment.NETHER || e.getPlayer().getWorld().getEnvironment() == World.Environment.THE_END){
+                        PortalMap.put(e.getPlayer(), portalLoc);
+                    }
+                }
+            }.runTaskLaterAsynchronously(this, 200);
+        }
+    }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -207,7 +239,7 @@ public final class Dreamcompass extends JavaPlugin implements Listener {
                         return true;
                     }
 
-                    if(args.length==1) {
+                    if(args.length == 1) {
                         String name = args[0];
                         Player target = Bukkit.getPlayer(name);
                         if (player.hasPermission("dreamcompass.use")) {
@@ -224,7 +256,7 @@ public final class Dreamcompass extends JavaPlugin implements Listener {
                                         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&lPlayer &4&l" + name + "&c&l is offline"));
                                         return true;
                                     } else {
-                                        Map.put(player, name);
+                                        Mapa.put(player, name);
                                         player.setItemInHand(new ItemStack(Material.COMPASS));
                                         player.setCompassTarget(target.getLocation());
                                         sender.sendMessage(ChatColor.GOLD + "Compass pointing to " + name);
@@ -253,3 +285,4 @@ public final class Dreamcompass extends JavaPlugin implements Listener {
         return false;
     }
 }
+
